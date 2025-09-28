@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobel</title>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+    <canvas id="resultado"></canvas>
+
+    <script type="text/javascript">
+    var image = new Image();
+    image.onload = imageLoaded;
+    image.src = "diana.jpeg"; // tu imagen
+
+    function imageLoaded(){
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext("2d");
+
+        canvas.width = image.width;
+        canvas.height = image.height;
+
+        ctx.drawImage(image, 0, 0, image.width, image.height);
+
+        // convertir a blanco y negro
+        blancoYNegro(canvas);
+
+        // aplicar sobel
+        var resultado = document.getElementById("resultado");
+        convolucionar(canvas, resultado);
+    }
+
+    function blancoYNegro(canvas){
+        var ctx = canvas.getContext("2d");
+        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var pixeles = imgData.data;
+
+        for (var p = 0; p < pixeles.length; p += 4){
+            var rojo = pixeles[p];
+            var verde = pixeles[p+1];
+            var azul = pixeles[p+2];
+
+            var gris = (rojo + verde + azul) / 3;
+
+            pixeles[p] = gris;
+            pixeles[p+1] = gris;
+            pixeles[p+2] = gris;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    function convolucionar(canvasFuente, canvasDestino){
+        var ctxFuente = canvasFuente.getContext("2d");
+        var imgDataFuente = ctxFuente.getImageData(0, 0, canvasFuente.width, canvasFuente.height);
+        var pixelesFuente = imgDataFuente.data;
+
+        canvasDestino.width = canvasFuente.width;
+        canvasDestino.height = canvasFuente.height;
+
+        var ctxDestino = canvasDestino.getContext("2d");
+        var imgDataDestino = ctxDestino.createImageData(canvasDestino.width, canvasDestino.height);
+        var pixelesDestino = imgDataDestino.data;
+
+        // Núcleos Sobel
+        var sobelVertical = [
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ];
+        var sobelHorizontal = [
+            [-1, -2, -1],
+            [ 0,  0,  0],
+            [ 1,  2,  1]
+        ];
+
+        // Recorremos cada pixel (evitando los bordes)
+        for (var y = 1; y < canvasFuente.height - 1; y++){
+            for (var x = 1; x < canvasFuente.width - 1; x++){
+                var totalY = 0;
+                var totalX = 0;
+
+                // aplicar kernel 3x3
+                for (var ky = -1; ky <= 1; ky++){
+                    for (var kx = -1; kx <= 1; kx++){
+                        var pixelIdx = (((y + ky) * canvasFuente.width) + (x + kx)) * 4;
+                        var gris = pixelesFuente[pixelIdx]; // ya está en escala de grises
+
+                        totalY += sobelVertical[ky + 1][kx + 1] * gris;
+                        totalX += sobelHorizontal[ky + 1][kx + 1] * gris;
+                    }
+                }
+
+                // magnitud del gradiente
+                var mag = Math.sqrt(totalX * totalX + totalY * totalY);
+                if (mag > 255) mag = 255;
+                if (mag < 0) mag = 0;
+
+                var idx = ((y * canvasFuente.width) + x) * 4;
+                pixelesDestino[idx] = mag;
+                pixelesDestino[idx + 1] = mag;
+                pixelesDestino[idx + 2] = mag;
+                pixelesDestino[idx + 3] = 255; // opacidad total
+            }
+        }
+
+        ctxDestino.putImageData(imgDataDestino, 0, 0);
+    }
+
+    
+    </script>
+
+</body>
+</html>
