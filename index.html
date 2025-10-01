@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Transformaciones Interactivas</title>
+<style>
+  :root{--max-w:400px;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#f2f4f7;
+    font-family:Arial, Helvetica, sans-serif;
+  }
+  .panel{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    padding:18px;
+    background:#fff;
+    border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+  }
+  canvas{
+    background:#fff;
+    max-width: calc(var(--max-w) * 1);
+    display:block;
+    border-radius:6px;
+    box-shadow:0 6px 14px rgba(0,0,0,0.06);
+  }
+  .sliders{
+    width: calc(var(--max-w) + 20px);
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    justify-content:space-between;
+  }
+  label{
+    font-size:13px;
+    width:120px;
+  }
+  input[type=range]{ flex:1; }
+  .value{
+    width:70px;
+    text-align:right;
+    font-weight:600;
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <canvas id="canvas"></canvas>
+
+  <div class="sliders">
+    <div class="row">
+      <label for="rotacion">Rotación (°) ↑</label>
+      <input id="rotacion" type="range" min="0" max="360" value="0">
+      <div id="rotacionVal" class="value">0°</div>
+    </div>
+
+    <div class="row">
+      <label for="escala">Escalamiento</label>
+      <input id="escala" type="range" min="-200" max="200" value="100">
+      <div id="escalaVal" class="value">1.00</div>
+    </div>
+
+    <div class="row">
+      <label for="trasX">Traslación X</label>
+      <input id="trasX" type="range" min="-200" max="200" value="0">
+      <div id="trasXVal" class="value">0</div>
+    </div>
+
+    <div class="row">
+      <label for="trasY">Traslación Y</label>
+      <input id="trasY" type="range" min="-200" max="200" value="0">
+      <div id="trasYVal" class="value">0</div>
+    </div>
+
+    <div class="row">
+      <label for="shearX">Cizallado X</label>
+      <input id="shearX" type="range" min="-100" max="100" value="0">
+      <div id="shearXVal" class="value">0.00</div>
+    </div>
+
+    <div class="row">
+      <label for="shearY">Cizallado Y</label>
+      <input id="shearY" type="range" min="-100" max="100" value="0">
+      <div id="shearYVal" class="value">0.00</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MAX_DISPLAY_WIDTH = 400;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const rot = document.getElementById('rotacion');
+const scl = document.getElementById('escala');
+const tx  = document.getElementById('trasX');
+const ty  = document.getElementById('trasY');
+const sx  = document.getElementById('shearX');
+const sy  = document.getElementById('shearY');
+
+const rotVal = document.getElementById('rotacionVal');
+const sclVal = document.getElementById('escalaVal');
+const txVal  = document.getElementById('trasXVal');
+const tyVal  = document.getElementById('trasYVal');
+const sxVal  = document.getElementById('shearXVal');
+const syVal  = document.getElementById('shearYVal');
+
+const image = new Image();
+image.src = 'diana.jpeg';
+image.onload = () => {
+  updateValues();
+  [rot, scl, tx, ty, sx, sy].forEach(el => el.addEventListener('input', ()=>{
+    updateValues();
+    draw();
+  }));
+  draw();
+};
+
+function updateValues(){
+  rotVal.textContent = rot.value + '°';
+  sclVal.textContent = (scl.value/100).toFixed(2);
+  txVal.textContent  = tx.value;
+  tyVal.textContent  = ty.value;
+  sxVal.textContent  = (sx.value/100).toFixed(2);
+  syVal.textContent  = (sy.value/100).toFixed(2);
+}
+
+function draw(){
+  if(!image.complete) return;
+
+  const scaleFactor = Math.min(MAX_DISPLAY_WIDTH / image.width, 1);
+  const imgW = Math.round(image.width * scaleFactor);
+  const imgH = Math.round(image.height * scaleFactor);
+
+  canvas.width = imgW*2;
+  canvas.height = imgH*2;
+
+  const angle = Number(rot.value) * Math.PI / 180;
+  const scaleVal = Number(scl.value)/100;
+  const txValNum = Number(tx.value);
+  const tyValNum = Number(ty.value);
+  const kx = Number(sx.value)/100;
+  const ky = Number(sy.value)/100;
+
+  // Matriz afín: R*Scale
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  const RS00 = cos*scaleVal;
+  const RS01 = -sin*scaleVal;
+  const RS10 = sin*scaleVal;
+  const RS11 = cos*scaleVal;
+
+  // Shear: aplicar kx, ky
+  const m00 = RS00 + kx*RS10;
+  const m01 = RS01 + kx*RS11;
+  const m10 = RS10 + ky*RS00;
+  const m11 = RS11 + ky*RS01;
+
+  const centerX = canvas.width/2 + txValNum;
+  const centerY = canvas.height/2 + tyValNum;
+
+  ctx.setTransform(m00, m10, m01, m11, centerX, centerY);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(image, -imgW/2, -imgH/2, imgW, imgH);
+
+  ctx.setTransform(1,0,0,1,0,0);
+}
+</script>
+
+</body>
+</html>
