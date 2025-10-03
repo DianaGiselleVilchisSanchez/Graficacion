@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobel</title>
+</head>
+<body>
+
+
+    <canvas id="canvas"></canvas>
+    <canvas id="resultado"></canvas>
+
+    <script type="text/javascript">
+
+    var image = new Image();
+    image.onload = imageLoaded;
+    image.src = "diana.jpeg";  // asegúrate de tener esta imagen en la misma carpeta
+
+    function imageLoaded(){
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext("2d");
+
+        canvas.width = image.width;
+        canvas.height = image.height;
+
+        ctx.drawImage(image, 0, 0, image.width, image.height);
+
+        blancoYNegro(canvas);  // ahora recibe el canvas como parámetro
+        var resultado = document.getElementById("resultado");
+        convolucionar(canvas, resultado);
+    }
+
+    function blancoYNegro(canvas){
+        var ctx = canvas.getContext("2d");
+        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var pixeles = imgData.data;
+
+        for (var p = 0; p < pixeles.length; p += 4){
+            var rojo = pixeles[p];
+            var verde = pixeles[p+1];
+            var azul  = pixeles[p+2];
+
+            var gris = (rojo + verde + azul) / 3;
+
+            pixeles[p]   = gris;
+            pixeles[p+1] = gris;
+            pixeles[p+2] = gris;
+        }
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    function convolucionar(canvasFuente, canvasDestino){
+        var ctxFuente = canvasFuente.getContext("2d");
+        var imgDataFuente = ctxFuente.getImageData(0, 0, canvasFuente.width, canvasFuente.height);
+        var pixelesFuente = imgDataFuente.data;
+
+        canvasDestino.width  = canvasFuente.width;
+        canvasDestino.height = canvasFuente.height;
+
+        var ctxDestino = canvasDestino.getContext("2d");
+        var imgDataDestino = ctxDestino.createImageData(canvasDestino.width, canvasDestino.height);
+        var pixelesDestino = imgDataDestino.data;
+
+        //un kernel con seno, un kernel con coseno 
+        //primero que sea con un valor fijo, quiero  una barrita para que le pueda ir moviendo para moverle a rotacion, escalamiento (este que tenga valores negativos y positivos)
+        //y una barra para cada transformación
+        //con rotacion, escalamiento, traslación y sizallado. Tendria que ser un kernel con seno, otro kernel con coseno. Primero con valores fijos
+        // Kernels Sobel
+        var sobelVertical = [
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ];
+
+        var sobelHorizontal = [
+            [-1, -2, -1],
+            [ 0,  0,  0],
+            [ 1,  2,  1]
+        ];
+
+        for (var y = 1; y < canvasFuente.height-1; y++){
+            for (var x = 1; x < canvasFuente.width-1; x++){
+                var idx = ((y * canvasFuente.width) + x) * 4;
+
+                var gx = 0;
+                var gy = 0;
+
+                for (var ky = 0; ky < 3; ky++){
+                    for (var kx = 0; kx < 3; kx++){
+                        var px = x + (kx - 1);
+                        var py = y + (ky - 1);
+                        var pidx = ((py * canvasFuente.width) + px) * 4;
+
+                        var intensidad = pixelesFuente[pidx]; // ya es gris, basta un canal
+                        gx += sobelHorizontal[ky][kx] * intensidad;
+                        gy += sobelVertical[ky][kx] * intensidad;
+                    }
+                }
+
+                var mag = Math.sqrt(gx*gx + gy*gy);
+                mag = Math.min(255, Math.max(0, mag)); // clamp
+
+                pixelesDestino[idx]     = mag; // R
+                pixelesDestino[idx + 1] = mag; // G
+                pixelesDestino[idx + 2] = mag; // B
+                pixelesDestino[idx + 3] = 255; // Alpha fijo
+            }
+        }
+
+        ctxDestino.putImageData(imgDataDestino, 0, 0);
+    }
+
+    </script>
+
+</body>
+</html>
