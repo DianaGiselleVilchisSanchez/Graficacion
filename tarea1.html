@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Filtros</title>
+<style>
+  body { font-family: Arial, sans-serif; display:flex; flex-direction:column; align-items:center; padding:18px; }
+  .toolbar { margin-bottom:10px; }
+  .toolbar button { margin:4px; padding:8px 12px; cursor:pointer; border-radius:6px; border:1px solid #bbb; background:#f6f6f6; }
+  .toolbar button.active { background:#2b8be6; color:white; border-color:#1f6fb3; }
+  #canvases { display:flex; gap:20px; align-items:flex-start; }
+  .canvas-box { display:flex; flex-direction:column; align-items:center; }
+  canvas { border:1px solid #ddd; max-width:460px; height:auto; }
+  .label { margin-bottom:6px; font-weight:600; }
+</style>
+</head>
+<body>
+
+  <h2>Filtros</h2>
+
+  <div class="toolbar" id="toolbar">
+    <button data-filter="original" class="active">Original</button>
+    <button data-filter="color">Tinte</button>
+    <button data-filter="enfoque">Enfoque</button>
+    <button data-filter="blur">Desenfoque</button>
+    <button data-filter="emboss">Relieve</button>
+    <button data-filter="sepia">Sepia</button>
+    <button data-filter="sobel">Sobel</button>
+  </div>
+
+  <div id="canvases">
+    <div class="canvas-box">
+      <div class="label">Original</div>
+      <canvas id="origCanvas"></canvas>
+    </div>
+    <div class="canvas-box">
+      <div class="label">Resultado</div>
+      <canvas id="outCanvas"></canvas>
+    </div>
+  </div>
+
+<script>
+const origCanvas = document.getElementById('origCanvas');
+const outCanvas  = document.getElementById('outCanvas');
+const origCtx = origCanvas.getContext('2d');
+const outCtx  = outCanvas.getContext('2d');
+
+let originalImageData = null;
+
+const image = new Image();
+image.src = 'diana.jpeg'; 
+image.onload = () => initCanvas();
+
+function initCanvas(){
+  const w = image.width;
+  const h = image.height;
+  origCanvas.width = outCanvas.width = w;
+  origCanvas.height = outCanvas.height = h;
+  origCtx.drawImage(image, 0, 0, w, h);
+  originalImageData = origCtx.getImageData(0, 0, w, h);
+  outCtx.putImageData(cloneImageData(originalImageData), 0, 0);
+}
+
+function cloneImageData(src){
+  return new ImageData(new Uint8ClampedArray(src.data), src.width, src.height);
+}
+function clamp(v){ return Math.max(0, Math.min(255, Math.round(v))); }
+
+function applyKernelToImageData(src, kernel){
+  const w = src.width, h = src.height;
+  const srcData = src.data;
+  const dst = new ImageData(w, h);
+  const dstData = dst.data;
+
+  let kernelSum = 0;
+  for (let i=0;i<3;i++) for (let j=0;j<3;j++) kernelSum += kernel[i][j];
+  if (Math.abs(kernelSum) < 1e-6) kernelSum = 1;
+
+  for (let y=0;y<h;y++){
+    for (let x=0;x<w;x++){
+      const i = ((y*w)+x)*4;
+      if (x===0 || y===0 || x===w-1 || y===h-1){
+        dstData[i]   = srcData[i];
+        dstData[i+1] = srcData[i+1];
+        dstData[i+2] = srcData[i+2];
+        dstData[i+3] = srcData[i+3];
+        continue;
+      }
+      let r=0,g=0,b=0;
+      for (let ky=-1; ky<=1; ky++){
+        for (let kx=-1; kx<=1; kx++){
+          const wk = kernel[ky+1][kx+1];
+          const idx = (((y+ky)*w) + (x+kx)) * 4;
+          r += srcData[idx]   * wk;
+          g += srcData[idx+1] * wk;
+          b += srcData[idx+2] * wk;
+        }
+      }
+      dstData[i]   = clamp(r / kernelSum);
+      dstData[i+1] = clamp(g / kernelSum);
+      dstData[i+2] = clamp(b / kernelSum);
+      dstData[i+3] = 255;
+    }
+  }
+  return dst;
+}
+
+function applyTint(src, color=[50,0,100]){
+  const out = cloneImageData(src);
+  const d = out.data;
+  for (let i=0; i<d.length; i+=4){
+    d[i]   = clamp(d[i]   + color[0]);
+    d[i+1] = clamp(d[i+1] + color[1]);
+    d[i+2] = clamp(d[i+2] + color[2]);
+  }
+  return out;
+}
+
+function applySepia(src){
+  const out = cloneImageData(src);
+  const d = out.data;
+  for (let i=0;i<d.length;i+=4){
+    const r = d[i], g = d[i+1], b = d[i+2];
+    const nr = clamp(0.393*r + 0.769*g + 0.189*b);
+    const ng = clamp(0.349*r + 0.686*g + 0.168*b);
+    const nb = clamp(0.272*r + 0.534*g + 0.131*b);
+    d[i]=nr; d[i+1]=ng; d[i+2]=nb;
+    d[i+3]=255;
+  }
+  return out;
+}
+
+function applySobel(src){
+  const w = src.width, h = src.height;
+  const s = src.data;
+  const dst = new ImageData(w,h);
+  const d = dst.data;
+  const gray = new Float32Array(w*h);
+  for (let y=0;y<h;y++){
+    for (let x=0;x<w;x++){
+      const i = ((y*w)+x)*4;
+      gray[y*w + x] = 0.299*s[i] + 0.587*s[i+1] + 0.114*s[i+2];
+    }
+  }
+  const kx = [[-1,0,1],[-2,0,2],[-1,0,1]];
+  const ky = [[-1,-2,-1],[0,0,0],[1,2,1]];
+  for (let y=0;y<h;y++){
+    for (let x=0;x<w;x++){
+      const i = ((y*w)+x)*4;
+      if (x===0 || y===0 || x===w-1 || y===h-1){
+        d[i]=d[i+1]=d[i+2]=0; d[i+3]=255;
+        continue;
+      }
+      let gx=0, gy=0;
+      for (let kyOff=-1; kyOff<=1; kyOff++){
+        for (let kxOff=-1; kxOff<=1; kxOff++){
+          const val = gray[(y+kyOff)*w + (x+kxOff)];
+          gx += kx[kyOff+1][kxOff+1] * val;
+          gy += ky[kyOff+1][kxOff+1] * val;
+        }
+      }
+      let mag = Math.sqrt(gx*gx + gy*gy);
+      mag = clamp(mag);
+      d[i] = d[i+1] = d[i+2] = mag;
+      d[i+3] = 255;
+    }
+  }
+  return dst;
+}
+
+function filter_original(src){ return cloneImageData(src); }
+function filter_color(src){ return applyTint(src, [40, 0, 70]); }
+function filter_enfoque(src){
+  const kernel = [[0,-1,0],[-1,5,-1],[0,-1,0]];
+  return applyKernelToImageData(src, kernel);
+}
+function filter_blur(src){
+  const kernel = [[1/9,1/9,1/9],[1/9,1/9,1/9],[1/9,1/9,1/9]];
+  return applyKernelToImageData(applyKernelToImageData(src, kernel), kernel);
+}
+function filter_emboss(src){
+  const kernelEmboss = [[-2,-1,0],[-1,1,1],[0,1,2]];
+  return applyKernelToImageData(src, kernelEmboss);
+}
+
+function filter_sepia(src){ return applySepia(src); }
+function filter_sobel(src){ return applySobel(src); }
+
+
+const toolbar = document.getElementById('toolbar');
+toolbar.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button');
+  if(!btn) return;
+  const filter = btn.dataset.filter;
+  if(!filter) return;
+
+  toolbar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (!originalImageData) return;
+  let out;
+  switch(filter){
+    case 'original': out = filter_original(originalImageData); break;
+    case 'color':    out = filter_color(originalImageData); break;
+    case 'enfoque':  out = filter_enfoque(originalImageData); break;
+    case 'blur':     out = filter_blur(originalImageData); break;
+    case 'emboss':   out = filter_emboss(originalImageData); break;
+    case 'sepia':    out = filter_sepia(originalImageData); break;
+    case 'sobel':    out = filter_sobel(originalImageData); break;
+    default: out = cloneImageData(originalImageData); break;
+  }
+  outCtx.putImageData(out, 0, 0);
+});
+
+
+</script>
+</body>
+</html>
