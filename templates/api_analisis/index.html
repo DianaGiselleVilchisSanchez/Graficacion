@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detector de Melanoma</title>
+    <style>
+        /* Definición de la Paleta de Colores */
+        :root {
+            --color-primary: #00C4CC; /* Verde Agua / Cian */
+            --color-primary-dark: #009DA3; /* Tono más oscuro del primario */
+            --color-primary-light: #E0F7FA; /* Tono muy claro del primario */
+            --color-bg-light: #F0FBFB; /* Fondo aún más claro */
+            --color-text-dark: #333333;
+            --color-text-light: #666666;
+            --color-maligno: #DC3545; /* Rojo de alerta */
+            --color-benigno: #28A745; /* Verde de seguridad */
+            --color-f1: #007BFF; /* Azul para F1-Score (manteniendo un color distinto para métricas) */
+            --color-border-light: #CCEAEB; /* Borde suave */
+        }
+
+        /* ESTILOS BASE */
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background-color: var(--color-primary-light); /* Fondo general en verde agua claro */
+            margin: 0; 
+            padding: 20px; 
+            color: var(--color-text-dark);
+        }
+        .main-container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+            background: white; /* Contenedor principal blanco para el contenido */
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); 
+            border: 1px solid var(--color-border-light); /* Borde sutil */
+        }
+        h1 { 
+            color: var(--color-primary); 
+            text-align: center; 
+            font-size: 2.5em; /* Un poco más grande */
+            margin-bottom: 5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.05); /* Sombra suave para el texto */
+        }
+        h2, h3 {
+            color: var(--color-text-dark);
+        }
+        p {
+            color: var(--color-text-light);
+        }
+        
+        /* ESTILOS DEL FORMULARIO */
+        #upload-form { 
+            margin-top: 30px; 
+            padding: 30px; 
+            border: 3px dashed var(--color-primary); 
+            text-align: center; 
+            border-radius: 12px; 
+            background-color: var(--color-bg-light); /* Fondo claro que combina */
+        }
+        input[type="file"] { 
+            margin-bottom: 20px; 
+            display: block; 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid var(--color-primary-dark); /* Borde del input con tono oscuro */
+            border-radius: 8px; 
+            box-sizing: border-box;
+            background-color: white;
+            color: var(--color-text-dark);
+        }
+        input[type="file"]::file-selector-button {
+            background-color: var(--color-primary-dark);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin-right: 15px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background-color: var(--color-primary);
+        }
+        button { 
+            padding: 14px 35px; /* Botón un poco más grande */
+            background-color: var(--color-primary); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: background-color 0.3s, transform 0.1s; 
+            font-size: 1.2em; 
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0, 196, 204, 0.4);
+        }
+        button:hover { 
+            background-color: var(--color-primary-dark); 
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(0, 196, 204, 0.5);
+        }
+        #loading { 
+            display: none; 
+            color: var(--color-primary-dark); 
+            margin-top: 15px; 
+            font-weight: bold; 
+            font-size: 1.1em;
+        }
+        .error-message { 
+            color: var(--color-maligno); 
+            font-weight: bold; 
+            text-align: center; 
+            margin-top: 20px; 
+            padding: 15px;
+            background-color: #FEEEEE;
+            border-radius: 10px;
+            border: 1px solid var(--color-maligno);
+        }
+
+        /* ESTILOS DE RESULTADO */
+        .result-box { 
+            text-align: center; 
+            padding: 30px; 
+            border-radius: 12px; 
+            margin-top: 40px; 
+            font-size: 1.1em;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .result-box.danger { 
+            background-color: #FDE8EA; 
+            border: 2px solid var(--color-maligno); 
+            color: var(--color-maligno); 
+        }
+        .result-box.success { 
+            background-color: #E6F3E6; /* Verde suave para benigno */
+            border: 2px solid var(--color-benigno); 
+            color: var(--color-benigno); 
+        }
+        .result-box h2 {
+            margin: 0;
+            font-size: 2em;
+        }
+        .image-row { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 30px; 
+            margin-top: 40px; 
+        }
+        .image-row .image-container { 
+            text-align: center; 
+        }
+        .image-row img { 
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 10px; 
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); 
+            transition: transform 0.2s;
+        }
+        .image-row img:hover {
+            transform: scale(1.02);
+        }
+        
+        .metrics-section { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 30px; 
+            margin-top: 40px; 
+        }
+        .model-card { 
+            padding: 25px; 
+            border: 1px solid var(--color-border-light); 
+            border-radius: 12px; 
+            position: relative; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s;
+            background-color: var(--color-bg-light);
+        }
+        .model-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        }
+        .model-card h4 {
+            color: var(--color-primary-dark);
+            margin-top: 0;
+            border-bottom: 2px solid var(--color-border-light);
+            padding-bottom: 10px;
+            font-size: 1.3em;
+        }
+        .f1-score-box { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            padding: 8px 15px; 
+            background-color: var(--color-f1); 
+            color: white; 
+            border-radius: 25px; 
+            font-weight: bold; 
+            font-size: 1em; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Barras de progreso con porcentajes completos */
+        .progress-container { 
+            width: 100%; 
+            background-color: #e9ecef; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            display: flex; 
+            height: 35px; /* Barras un poco más altas */
+            line-height: 35px; 
+            color: white; 
+            text-align: center; 
+            font-weight: bold; 
+            margin-top: 15px; 
+        }
+        .progress-bar-maligno { 
+            background-color: var(--color-maligno); 
+            box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.1);
+        }
+        .progress-bar-benigno { 
+            background-color: var(--color-benigno); 
+            box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.1);
+        }
+        .progress-bar { 
+            transition: width 0.6s ease-out; /* Transición más suave */
+            flex-shrink: 0; 
+            font-size: 0.95em;
+        }
+        .progress-bar span { 
+            padding: 0 10px; 
+        } 
+
+        .return-link { 
+            text-align: center; 
+            margin-top: 50px; 
+        }
+        .return-link a { 
+            text-decoration: none; 
+            padding: 15px 30px; 
+            background-color: var(--color-primary-dark); 
+            color: white; 
+            border-radius: 10px; 
+            transition: background-color 0.3s, transform 0.1s;
+            font-size: 1.1em;
+            box-shadow: 0 4px 10px rgba(0, 157, 163, 0.3);
+        }
+        .return-link a:hover {
+            background-color: var(--color-primary);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1>🔍 Detector de Melanoma</h1>
+        <p style="text-align: center; color: var(--color-text-light); font-size: 1.1em;">Sube una imagen de lesión de piel para obtener el análisis con Inteligencia Artificial.</p>
+
+        <form action="{% url 'home' %}" method="post" enctype="multipart/form-data" id="upload-form">
+            {% csrf_token %}
+            <input type="file" id="image-input" name="imagen_piel" accept=".jpg, .jpeg, .png, .tif, .tiff" required>
+            <button type="submit" id="submit-btn">Analizar Lesión</button>
+            <div id="loading">Cargando y evaluando modelos...</div>
+        </form>
+
+        {% if error %}
+            <div class="error-message">Error: {{ error }}</div>
+        {% endif %}
+
+        {% if mostrar_resultado %}
+            <hr style="margin: 40px 0; border-top: 1px solid var(--color-border-light);">
+            <h2 style="text-align: center; color: var(--color-primary-dark);">Resultados del Análisis Detallado</h2>
+
+            <div class="result-box {{ color }}">
+                <h2>Diagnóstico Final: {{ resultado_final }}</h2>
+                <p style="font-size: 1.2em;">{{ mensaje }}</p>
+                
+            </div>
+            
+            <div class="image-row">
+                <div class="image-container">
+                    <h3>Imagen Original</h3>
+                    <img src="{{ imagen_url }}" alt="Lesión de Piel Original">
+                </div>
+
+                {% if imagen_deteccion_url %}
+                    <div class="image-container">
+                        <h3>Análisis de Detección (Simulado)</h3>
+                        <img src="{{ imagen_deteccion_url }}" alt="Detección de Malignidad">
+                        
+                    </div>
+                {% else %}
+                    <div class="image-container" style="display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px dashed var(--color-border-light); border-radius: 10px; background-color: var(--color-bg-light); min-height: 250px;">
+                        <h3>Análisis de Detección</h3>
+                        <p style="color: var(--color-text-light);">No se encontró lesión maligna para marcar.</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <hr style="margin: 40px 0; border-top: 1px solid var(--color-border-light);">
+            <h3 style="text-align: center; color: var(--color-primary-dark);">Métricas por Modelo</h3>
+
+            <div class="metrics-section">
+                <div class="model-card">
+                    <h4>Modelo ResNet</h4>
+                    <div class="f1-score-box">F1: {{ resnet_f1 }}</div>
+                    
+                    <p style="margin-top: 30px; font-weight: bold; color: var(--color-text-dark);">Resultado:</p>
+                    <div class="progress-container">
+                        <div class="progress-bar progress-bar-maligno" style="width: {{ resnet_confianza_maligno }}%;">
+                            {% if resnet_confianza_maligno > 8 %}<span>Maligno {{ resnet_confianza_maligno }}%</span>{% endif %}
+                        </div>
+                        <div class="progress-bar progress-bar-benigno" style="width: {{ resnet_confianza_benigno }}%;">
+                            {% if resnet_confianza_benigno > 8 %}<span>Benigno {{ resnet_confianza_benigno }}%</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="model-card">
+                    <h4>Modelo AlexNet</h4>
+                    <div class="f1-score-box">F1: {{ alexnet_f1 }}</div>
+                    
+                    <p style="margin-top: 30px; font-weight: bold; color: var(--color-text-dark);">Resultado:</p>
+                    <div class="progress-container">
+                        <div class="progress-bar progress-bar-maligno" style="width: {{ alexnet_confianza_maligno }}%;">
+                            {% if alexnet_confianza_maligno > 8 %}<span>Maligno {{ alexnet_confianza_maligno }}%</span>{% endif %}
+                        </div>
+                        <div class="progress-bar progress-bar-benigno" style="width: {{ alexnet_confianza_benigno }}%;">
+                            {% if alexnet_confianza_benigno > 8 %}<span>Benigno {{ alexnet_confianza_benigno }}%</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="return-link">
+                <a href="{% url 'home' %}">← Analizar Otra Imagen</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const loadingIndicator = document.getElementById('loading');
+        const submitBtn = document.getElementById('submit-btn');
+        
+        form.addEventListener('submit', function() {
+            loadingIndicator.style.display = 'block';
+            submitBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
